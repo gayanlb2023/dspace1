@@ -132,41 +132,98 @@
             // Signature canvas setup
             const canvas = document.getElementById('signature-canvas');
             let signatureData = '';
+            let hasDrawn = false; // Track if drawing has occurred
             if (canvas) {
                 const ctx = canvas.getContext('2d');
                 let isDrawing = false;
+
+                // Helper function to get mouse coordinates relative to canvas
+                function getCanvasCoordinates(event) {
+                    const rect = canvas.getBoundingClientRect();
+                    return {
+                        x: event.clientX - rect.left,
+                        y: event.clientY - rect.top
+                    };
+                }
+
                 canvas.addEventListener('mousedown', (e) => {
                     isDrawing = true;
+                    hasDrawn = true; // Mark that drawing has started
+                    const coords = getCanvasCoordinates(e);
                     ctx.beginPath();
-                    ctx.moveTo(e.offsetX, e.offsetY);
+                    ctx.moveTo(coords.x, coords.y);
                     ctx.strokeStyle = '#000000';
-                    ctx.lineWidth = 1;
-                    console.log('Mouse down at:', e.offsetX, e.offsetY);
+                    ctx.lineWidth = 2; // Increased for visibility
+                    console.log('Mouse down at:', coords.x, coords.y);
                 });
+
                 canvas.addEventListener('mousemove', (e) => {
                     if (isDrawing) {
-                        ctx.lineTo(e.offsetX, e.offsetY);
+                        const coords = getCanvasCoordinates(e);
+                        ctx.lineTo(coords.x, coords.y);
                         ctx.stroke();
                     }
                 });
+
                 canvas.addEventListener('mouseup', () => {
-                    isDrawing = false;
-                    signatureData = canvas.toDataURL();
-                    const signatureInput = document.getElementById('Signature (Dean/Faculty)');
-                    if (signatureInput) {
-                        signatureInput.value = signatureData.substring(0, 50) + '...';
-                        console.log('Signature captured:', signatureInput.value);
-                    } else {
-                        console.error('Signature input not found');
+                    if (isDrawing) {
+                        isDrawing = false;
+                        signatureData = canvas.toDataURL('image/png');
+                        const signatureInput = document.getElementById('Signature (Dean/Faculty)');
+                        if (signatureInput) {
+                            signatureInput.value = 'Drawn';
+                            console.log('Signature captured: Drawn, Data:', signatureData.substring(0, 50) + '...');
+                        } else {
+                            console.error('Signature input not found');
+                        }
                     }
                 });
+
                 canvas.addEventListener('mouseout', () => {
                     isDrawing = false;
                 });
+
+                // Support touch events for mobile devices
+                canvas.addEventListener('touchstart', (e) => {
+                    e.preventDefault();
+                    isDrawing = true;
+                    hasDrawn = true;
+                    const touch = e.touches[0];
+                    const coords = getCanvasCoordinates(touch);
+                    ctx.beginPath();
+                    ctx.moveTo(coords.x, coords.y);
+                    console.log('Touch start at:', coords.x, coords.y);
+                });
+
+                canvas.addEventListener('touchmove', (e) => {
+                    e.preventDefault();
+                    if (isDrawing) {
+                        const touch = e.touches[0];
+                        const coords = getCanvasCoordinates(touch);
+                        ctx.lineTo(coords.x, coords.y);
+                        ctx.stroke();
+                    }
+                });
+
+                canvas.addEventListener('touchend', () => {
+                    if (isDrawing) {
+                        isDrawing = false;
+                        signatureData = canvas.toDataURL('image/png');
+                        const signatureInput = document.getElementById('Signature (Dean/Faculty)');
+                        if (signatureInput) {
+                            signatureInput.value = 'Drawn';
+                            console.log('Signature captured: Drawn, Data:', signatureData.substring(0, 50) + '...');
+                        } else {
+                            console.error('Signature input not found');
+                        }
+                    }
+                });
+
                 document.getElementById('clear-signature').addEventListener('click', () => {
                     if (ctx) {
                         ctx.clearRect(0, 0, canvas.width, canvas.height);
                         signatureData = '';
+                        hasDrawn = false;
                         const signatureInput = document.getElementById('Signature (Dean/Faculty)');
                         if (signatureInput) {
                             signatureInput.value = '';
@@ -185,8 +242,10 @@
                         document.getElementById('draw-signature-section').classList.toggle('hidden', this.value !== 'draw');
                         document.getElementById('upload-signature-section').classList.toggle('hidden', this.value !== 'upload');
                         const signatureInput = document.getElementById('Signature (Dean/Faculty)');
-                        if (signatureInput && this.value === 'upload') {
+                        if (signatureInput) {
                             signatureInput.value = '';
+                            signatureData = '';
+                            hasDrawn = false;
                             console.log('Switched to:', this.value);
                         }
                     });
@@ -213,6 +272,20 @@
             if (form) {
                 form.addEventListener('submit', async (e) => {
                     e.preventDefault();
+                    // Validate signature
+                    const signatureMethod = document.querySelector('input[name="signature-method"]:checked').value;
+                    if (signatureMethod === 'draw' && !hasDrawn) {
+                        document.getElementById('error').innerText = 'Please draw a signature before submitting.';
+                        document.getElementById('error').style.display = 'block';
+                        document.getElementById('success').style.display = 'none';
+                        return;
+                    }
+                    if (signatureMethod === 'upload' && !document.getElementById('signature-upload').files.length) {
+                        document.getElementById('error').innerText = 'Please upload a signature before submitting.';
+                        document.getElementById('error').style.display = 'block';
+                        document.getElementById('success').style.display = 'none';
+                        return;
+                    }
                     const formData = new FormData(form);
                     const data = {};
                     formData.forEach((value, key) => {
@@ -238,14 +311,11 @@
                     data.departments = JSON.stringify(departments);
                     // Ensure signature is set
                     if (!data['Signature (Dean/Faculty)']) {
-                        const method = document.querySelector('input[name="signature-method"]:checked').value;
-                        data['Signature (Dean/Faculty)'] = method === 'draw' ? (signatureData || 'No signature drawn') : 'No file uploaded';
-                    } else if (data['Signature (Dean/Faculty)'] === '') {
-                        data['Signature (Dean/Faculty)'] = signatureData.substring(0, 50) + '...' || 'No signature drawn';
+                        data['Signature (Dean/Faculty)'] = signatureMethod === 'draw' ? (hasDrawn ? 'Drawn' : 'No signature drawn') : 'No file uploaded';
                     }
                     console.log('Form data to be sent:', JSON.stringify(data, null, 2));
                     try {
-                        const response = await fetch('https://script.google.com/macros/s/AKfycbyBMyKUGvhjMgp6Vcehs-M-KR9kdi0rzX8ZiQgDmAPX53HWHoAiqpsjjfCEP1r1gjI/exec', {
+                        const response = await fetch('YOUR_NEW_WEB_APP_URL', {
                             method: 'POST',
                             body: new URLSearchParams(data)
                         });
@@ -275,6 +345,9 @@
                             doc.text('Section 5: Declaration', 10, declarationY);
                             doc.text('I hereby certify that the above information provided is accurate and correct, and also understand the LEARN FOSS SLA terms mentioned above.', 10, declarationY + 10, { maxWidth: 190 });
                             doc.text(`Signature (Dean/Faculty): ${data['Signature (Dean/Faculty)'] || ''}`, 10, declarationY + 30);
+                            if (signatureData && signatureMethod === 'draw' && hasDrawn) {
+                                doc.addImage(signatureData, 'PNG', 10, declarationY + 35, 50, 25);
+                            }
                             doc.save('DSpace_Service_Request.pdf');
                             document.getElementById('success').style.display = 'block';
                             document.getElementById('error').style.display = 'none';
@@ -283,6 +356,8 @@
                             if (canvas) {
                                 const ctx = canvas.getContext('2d');
                                 ctx.clearRect(0, 0, canvas.width, canvas.height);
+                                signatureData = '';
+                                hasDrawn = false;
                             }
                         } else {
                             throw new Error(result.error || 'Unknown error from server');
