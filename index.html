@@ -307,7 +307,7 @@
                     data.departments = JSON.stringify(departments);
                     console.log('Form data to be sent:', JSON.stringify(data, null, 2));
                     try {
-                        const response = await fetch('YOUR_NEW_WEB_APP_URL', {
+                        const response = await fetch('https://script.google.com/macros/s/AKfycbzUUPpJ6nLwQEcqYbEA3w4BbDficuH1MiujV6MWs-LGeToEWkkC9I-3i850VahDyJY/exec', {
                             method: 'POST',
                             body: new URLSearchParams(data)
                         });
