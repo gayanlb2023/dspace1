@@ -81,12 +81,12 @@
                     <label for="signature-canvas" class="signature">Draw Signature (Dean/Faculty):</label>
                     <canvas id="signature-canvas" width="300" height="100"></canvas>
                     <button type="button" id="clear-signature">Clear Signature</button>
-                    <input type="hidden" id="Signature (Dean/Faculty)" name="Signature (Dean/Faculty)">
+                    <input type="hidden" id="Signature (Dean/Faculty)" name="Signature (Dean/Faculty)" value="No signature drawn">
                 </div>
                 <div id="upload-signature-section" class="form-group hidden">
                     <label for="signature-upload" class="signature">Upload Signature (Dean/Faculty):</label>
                     <input type="file" id="signature-upload" name="signature-upload" accept="image/*">
-                    <input type="hidden" id="Signature (Dean/Faculty)" name="Signature (Dean/Faculty)">
+                    <input type="hidden" id="Signature (Dean/Faculty)" name="Signature (Dean/Faculty)" value="No file uploaded">
                 </div>
             </div>
             <div class="buttons">
@@ -220,7 +220,7 @@
                         hasDrawn = false;
                         const signatureInput = document.getElementById('Signature (Dean/Faculty)');
                         if (signatureInput) {
-                            signatureInput.value = '';
+                            signatureInput.value = 'No signature drawn';
                             console.log('Signature cleared');
                         }
                     }
@@ -237,10 +237,10 @@
                         document.getElementById('upload-signature-section').classList.toggle('hidden', this.value !== 'upload');
                         const signatureInput = document.getElementById('Signature (Dean/Faculty)');
                         if (signatureInput) {
-                            signatureInput.value = '';
+                            signatureInput.value = this.value === 'draw' ? 'No signature drawn' : 'No file uploaded';
                             signatureData = '';
                             hasDrawn = false;
-                            console.log('Switched to:', this.value);
+                            console.log('Switched to:', this.value, 'Input value set to:', signatureInput.value);
                         }
                     });
                 });
@@ -255,7 +255,7 @@
                     const signatureInput = document.getElementById('Signature (Dean/Faculty)');
                     if (file && signatureInput) {
                         signatureInput.value = `Uploaded: ${file.name}`;
-                        console.log('File uploaded:', file.name);
+                        console.log('File uploaded:', file.name, 'Input value:', signatureInput.value);
                     }
                 });
             } else {
@@ -269,13 +269,14 @@
                     // Validate signature
                     const signatureInput = document.getElementById('Signature (Dean/Faculty)');
                     const signatureMethod = document.querySelector('input[name="signature-method"]:checked').value;
-                    if (signatureMethod === 'draw' && (!signatureInput.value || signatureInput.value === 'No signature drawn')) {
+                    console.log('Submitting with method:', signatureMethod, 'Input value:', signatureInput.value);
+                    if (signatureMethod === 'draw' && signatureInput.value === 'No signature drawn') {
                         document.getElementById('error').innerText = 'Please draw a signature before submitting.';
                         document.getElementById('error').style.display = 'block';
                         document.getElementById('success').style.display = 'none';
                         return;
                     }
-                    if (signatureMethod === 'upload' && (!signatureInput.value || signatureInput.value === 'No file uploaded')) {
+                    if (signatureMethod === 'upload' && signatureInput.value === 'No file uploaded') {
                         document.getElementById('error').innerText = 'Please upload a signature before submitting.';
                         document.getElementById('error').style.display = 'block';
                         document.getElementById('success').style.display = 'none';
@@ -311,8 +312,15 @@
                             body: new URLSearchParams(data)
                         });
                         console.log('Fetch response status:', response.status);
-                        const result = await response.json();
-                        console.log('Response data:', result);
+                        const text = await response.text(); // Get raw response for debugging
+                        console.log('Raw response:', text);
+                        let result;
+                        try {
+                            result = JSON.parse(text);
+                        } catch (parseError) {
+                            throw new Error(`Invalid JSON response: ${text.substring(0, 50)}...`);
+                        }
+                        console.log('Parsed response data:', result);
                         if (result.result === 'success') {
                             const doc = new jsPDF();
                             doc.setFontSize(12);
