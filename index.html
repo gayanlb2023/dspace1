@@ -206,4 +206,164 @@
                         isDrawing = false;
                         signatureData = canvas.toDataURL('image/png');
                         const signatureInput = document.getElementById('Signature (Dean/Faculty)');
-                       
+                        if (signatureInput) {
+                            signatureInput.value = 'Drawn';
+                            console.log('Signature captured: Drawn, Data:', signatureData.substring(0, 50) + '...');
+                        }
+                    }
+                });
+
+                document.getElementById('clear-signature').addEventListener('click', () => {
+                    if (ctx) {
+                        ctx.clearRect(0, 0, canvas.width, canvas.height);
+                        signatureData = '';
+                        hasDrawn = false;
+                        const signatureInput = document.getElementById('Signature (Dean/Faculty)');
+                        if (signatureInput) {
+                            signatureInput.value = '';
+                            console.log('Signature cleared');
+                        }
+                    }
+                });
+            } else {
+                console.error('Canvas not found');
+            }
+            // Toggle signature method
+            const signatureRadios = document.querySelectorAll('input[name="signature-method"]');
+            if (signatureRadios.length > 0) {
+                signatureRadios.forEach(radio => {
+                    radio.addEventListener('change', function() {
+                        document.getElementById('draw-signature-section').classList.toggle('hidden', this.value !== 'draw');
+                        document.getElementById('upload-signature-section').classList.toggle('hidden', this.value !== 'upload');
+                        const signatureInput = document.getElementById('Signature (Dean/Faculty)');
+                        if (signatureInput) {
+                            signatureInput.value = '';
+                            signatureData = '';
+                            hasDrawn = false;
+                            console.log('Switched to:', this.value);
+                        }
+                    });
+                });
+            } else {
+                console.error('Signature method radios not found');
+            }
+            // Handle upload
+            const signatureUpload = document.getElementById('signature-upload');
+            if (signatureUpload) {
+                signatureUpload.addEventListener('change', (e) => {
+                    const file = e.target.files[0];
+                    const signatureInput = document.getElementById('Signature (Dean/Faculty)');
+                    if (file && signatureInput) {
+                        signatureInput.value = `Uploaded: ${file.name}`;
+                        console.log('File uploaded:', file.name);
+                    }
+                });
+            } else {
+                console.error('Signature upload input not found');
+            }
+            // Submit form and generate PDF
+            const form = document.getElementById('dspace-form');
+            if (form) {
+                form.addEventListener('submit', async (e) => {
+                    e.preventDefault();
+                    // Validate signature
+                    const signatureInput = document.getElementById('Signature (Dean/Faculty)');
+                    const signatureMethod = document.querySelector('input[name="signature-method"]:checked').value;
+                    if (signatureMethod === 'draw' && (!signatureInput.value || signatureInput.value === 'No signature drawn')) {
+                        document.getElementById('error').innerText = 'Please draw a signature before submitting.';
+                        document.getElementById('error').style.display = 'block';
+                        document.getElementById('success').style.display = 'none';
+                        return;
+                    }
+                    if (signatureMethod === 'upload' && (!signatureInput.value || signatureInput.value === 'No file uploaded')) {
+                        document.getElementById('error').innerText = 'Please upload a signature before submitting.';
+                        document.getElementById('error').style.display = 'block';
+                        document.getElementById('success').style.display = 'none';
+                        return;
+                    }
+                    const formData = new FormData(form);
+                    const data = {};
+                    formData.forEach((value, key) => {
+                        if (key.includes('[]')) {
+                            const baseKey = key.replace('[]', '');
+                            data[baseKey] = data[baseKey] || [];
+                            data[baseKey].push(value);
+                        } else {
+                            data[key] = value;
+                        }
+                    });
+                    // Convert department arrays to objects
+                    const departments = [];
+                    const deptFields = ['Department Name', 'Departmental Admin/Coordinator Name', 'Contact Number (WhatsApp)', 'EduID / SSO Login'];
+                    const maxLength = Math.max(...deptFields.map(field => (data[field] || []).length));
+                    for (let i = 0; i < maxLength; i++) {
+                        const dept = {};
+                        deptFields.forEach(field => {
+                            dept[field] = data[field][i] || '';
+                        });
+                        departments.push(dept);
+                    }
+                    data.departments = JSON.stringify(departments);
+                    console.log('Form data to be sent:', JSON.stringify(data, null, 2));
+                    try {
+                        const response = await fetch('YOUR_NEW_WEB_APP_URL', {
+                            method: 'POST',
+                            body: new URLSearchParams(data)
+                        });
+                        console.log('Fetch response status:', response.status);
+                        const result = await response.json();
+                        console.log('Response data:', result);
+                        if (result.result === 'success') {
+                            const doc = new jsPDF();
+                            doc.setFontSize(12);
+                            doc.text('LEARN DSpace as a Service', 105, 20, { align: 'center' });
+                            doc.text('Service Request Form', 105, 30, { align: 'center' });
+                            doc.setFontSize(10);
+                            doc.text('LEARN DSpace as a Service is provided as a central publication workflow management system...', 10, 40, { maxWidth: 190 });
+                            doc.text('All the LEARN FOSS services can be accessed from anywhere as long as you are connected to the Internet...', 10, 60, { maxWidth: 190 });
+                            doc.text('Section 1: Faculty Information', 10, 80);
+                            doc.text(`Faculty Name: ${data['Faculty Name'] || ''}`, 10, 90);
+                            doc.text('Department Details:', 10, 100);
+                            departments.forEach((dept, index) => {
+                                const yOffset = 110 + (index * 40);
+                                doc.text(`Department ${index + 1}:`, 15, yOffset);
+                                doc.text(`Name: ${dept['Department Name'] || ''}`, 20, yOffset + 5);
+                                doc.text(`Admin/Coordinator: ${dept['Departmental Admin/Coordinator Name'] || ''}`, 20, yOffset + 10);
+                                doc.text(`Contact: ${dept['Contact Number (WhatsApp)'] || ''}`, 20, yOffset + 15);
+                                doc.text(`EduID/SSO: ${dept['EduID / SSO Login'] || ''}`, 20, yOffset + 20);
+                            });
+                            const declarationY = 110 + (departments.length * 40);
+                            doc.text('Section 5: Declaration', 10, declarationY);
+                            doc.text('I hereby certify that the above information provided is accurate and correct, and also understand the LEARN FOSS SLA terms mentioned above.', 10, declarationY + 10, { maxWidth: 190 });
+                            doc.text(`Signature (Dean/Faculty): ${data['Signature (Dean/Faculty)'] || ''}`, 10, declarationY + 30);
+                            if (signatureData && data['Signature (Dean/Faculty)'] === 'Drawn') {
+                                doc.addImage(signatureData, 'PNG', 10, declarationY + 35, 50, 25);
+                            }
+                            doc.save('DSpace_Service_Request.pdf');
+                            document.getElementById('success').style.display = 'block';
+                            document.getElementById('error').style.display = 'none';
+                            document.getElementById('pdf-link').href = doc.output('bloburl');
+                            form.reset();
+                            if (canvas) {
+                                const ctx = canvas.getContext('2d');
+                                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                                signatureData = '';
+                                hasDrawn = false;
+                            }
+                        } else {
+                            throw new Error(result.error || 'Unknown error from server');
+                        }
+                    } catch (error) {
+                        console.error('Submission error:', error);
+                        document.getElementById('error').innerText = `Error submitting form: ${error.message}`;
+                        document.getElementById('error').style.display = 'block';
+                        document.getElementById('success').style.display = 'none';
+                    }
+                });
+            } else {
+                console.error('Form not found');
+            }
+        });
+    </script>
+</body>
+</html>
