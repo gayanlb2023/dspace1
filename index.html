@@ -307,7 +307,7 @@
                     data.departments = JSON.stringify(departments);
                     console.log('Form data to be sent:', JSON.stringify(data, null, 2));
                     try {
-                        const response = await fetch('https://script.google.com/macros/s/AKfycbxgtCznXaw2KNEZDk5nzL-TvMrraIq_JxV38VBVBdP2VPFgwF8d4jpfxGoUwU_F_fw/exec', {
+                        const response = await fetch('https://script.google.com/macros/s/AKfycbwfzviteZbuGsgxHqLHpyx0iC5i2eJH-UGXf_NV-39TwadlB_Z43YpnOvY-K8bWYQ/exec', {
                             method: 'POST',
                             body: new URLSearchParams(data),
                             headers: {
